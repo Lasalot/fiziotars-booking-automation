@@ -1,0 +1,2510 @@
+{
+  "updatedAt": "2026-03-05T15:14:02.000Z",
+  "createdAt": "2026-02-27T13:07:55.561Z",
+  "id": "8D16AbR4hldDuR0j",
+  "name": "Fiziotars Booking Automation",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "format": "resolved",
+        "options": {}
+      },
+      "id": "n01",
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        256,
+        352
+      ],
+      "credentials": {
+        "imap": {
+          "id": "IMAP_CRED_ID",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $input.item.json;\nconst ourEmail = 'YOUR_BOOKED4US_EMAIL';\nconst from = e.from?.text || e.from?.value?.[0]?.address || '';\nif (from.includes(ourEmail)) return [];\nconst subj = e.subject || '';\nconst refMatch = subj.match(/REF#([A-Z0-9]+)/i);\nreturn [{ json: {\n  messageId: (e.headers?.['message-id'] || e.messageId || '').replace(/[<>]/g,''),\n  inReplyTo: (e.headers?.['in-reply-to'] || e.inReplyTo || '').replace(/[<>]/g,''),\n  subjectSessionId: refMatch ? refMatch[1] : null,\n  fromEmail: from,\n  fromName: e.from?.value?.[0]?.name || from,\n  subject: subj.replace(/^(Re:|Fwd:)\\s*/i,'').trim(),\n  body: e.text || e.html || '',\n  receivedAt: new Date().toISOString()\n}}];"
+      },
+      "id": "n02",
+      "name": "Parse Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Fiziotars Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "n03",
+      "name": "Get Sessions",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        704,
+        352
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $('Parse Email').first().json;\nconst sessions = $input.all().map(i => i.json);\nlet session = null;\nif (email.inReplyTo) session = sessions.find(s => s.last_sent_message_id === email.inReplyTo);\nif (!session && email.subjectSessionId) session = sessions.find(s => s.session_id === email.subjectSessionId);\nreturn [{ json: { email, session: session || null, sessionFound: !!session } }];"
+      },
+      "id": "n04",
+      "name": "Find Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.sessionFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n05",
+      "name": "Session Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $input.item.json.email;\nconst sys = `You are an AI assistant for Fiziotars physiotherapy clinic in Hungary.\nAnalyze the patient email and decide if there is enough info to book an appointment.\nRequired: treatment type or complaint, new or returning patient.\n\nPatients write in Hungarian. Common Hungarian terms and their routing:\n- hátfájás, derékfájás, gerincfájás = back/lumbar/spine pain → dori\n- nyakfájás, nyaki feszültség, nyakmerevség = neck pain → dori\n- vállpanasz, váll fájdalom, vállmerevség = shoulder pain → dori\n- porckorongsérv, skoliózis = disc herniation/scoliosis → dori\n- masszázs, masszírozás = massage therapy → farkas_arpad\n- csípőfájás = hip pain → sukei_zsuzsi\n- térdfájás, bokafájás, lábszárfájás = knee/ankle/lower leg → sukei_zsuzsi\n- tapeing, kinesio, sportrehabilitáció = taping/sports rehab → sukei_zsuzsi\n- terhesség, szülés utáni, posztnatális = pregnancy/postnatal → agi\n- fogyás, súlycsökkentés = weight loss → agi\n- törés utáni, műtét utáni rehab = post-fracture/surgery → zsuzsi\n- gyermek vizsgálat = pediatric → zsuzsi\n- könyökfájás, csuklófájás = elbow/wrist pain → zsuzsi\n- otthoni látogatás, háziviziit = home visit → info (sufficient: false)\n\nNew vs returning patient:\n- \"első alkalommal\", \"először jönnék\", \"még nem voltam\" = new patient (is_new_patient: true)\n- \"már voltam\", \"visszatérő\", \"korábban járt\" = returning (is_new_patient: false)\n\nSufficiency rule: If BOTH treatment type AND is_new_patient are determined, set sufficient: true (unless assignee is \"info\").\n\nRoute to therapist:\n- farkas_arpad: massage therapy\n- sukei_zsuzsi: taping, sports rehab, lower-body pain (hip, ankle, knee)\n- zsuzsi: post-fracture/surgery rehab, pediatric, elbow or wrist pain\n- agi: pregnancy, post-natal recovery, weight loss\n- dori: disc herniation, scoliosis, shoulder/neck/back/lumbar pain\n- info: home visit requests, truly unclear/unroutable — always set sufficient: false\n\nRespond ONLY with valid JSON:\n{\"sufficient\":bool,\"assignee\":\"dori|agi|zsuzsi|farkas_arpad|sukei_zsuzsi|info\",\"gathered\":{\"treatment_type\":\"str\",\"is_new_patient\":true/false/null,\"preferences\":\"str or null\",\"urgency\":\"str\"},\"missing_info\":[],\"clarification_questions\":\"Hungarian clarification text if needed, empty string if sufficient\"}\nDo NOT wrap in code blocks or markdown. Return raw JSON only, starting with {\n`;\nreturn [{ json: { email, systemMessage:sys, emailBody:email.body } }];"
+      },
+      "id": "n06",
+      "name": "Prepare Triage Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json.content\nconst email = $('Prepare Triage Request').item.json.email;\nlet triage;\ntry {\n  const clean = (resp || '{}').replace(/^```(?:json)?\\s*/i, '').replace(/```\\s*$/, '').trim();\n  triage = JSON.parse(clean);\n} catch(e) {\n  triage = { sufficient: false, assignee: 'info', gathered: {}, missing_info: [], clarification_questions: '' };\n}\nreturn [{ json: { email, triage } }];"
+      },
+      "id": "n08",
+      "name": "Parse Triage Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.triage.sufficient }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n09",
+      "name": "Initial Sufficient?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const CALENDAR_MAP = { \"dori\":1, agi:2, zsuzsi:5, farkas_arpad:3, sukei_zsuzsi:4 };\nconst NAME_MAP = { dori:'Sipos Dóra', agi:'Lugosi Ágnes', zsuzsi:'Panykó-Tóth Zsuzsanna', farkas_arpad:'Farkas Árpád', sukei_zsuzsi:'Sükei Zsuzsa' };\nconst prev = $('Parse Triage Response').first().json;\nconst { email, triage } = prev;\nconst assignee = triage.assignee || 'dori';\nconst calendarId = CALENDAR_MAP[assignee] || 1;\nconst calendarName = NAME_MAP[assignee] || assignee;\nreturn [{ json: { email, triage, calendarId, calendarName: calendarName } }];"
+      },
+      "id": "n45",
+      "name": "Resolve Calendar (New)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://fiziotars.booked4.us/rest-v2/api/Calendars/' + $json.calendarId + '/Services' }}",
+        "options": {}
+      },
+      "id": "n56",
+      "name": "Get Services (New)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2752,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.all().map(i => i.json);\nconst prev = $('Resolve Calendar (New)').first().json;\nconst { email, triage, calendarId, calendarName } = prev;\nconst list = Array.isArray(raw) ? raw : (raw[0]?.Data ? raw.map(i=>i.Data).flat() : []);\nconst services = list.filter(s => s && s.Id);\nconst service = services[0] || { Id: 1, Name: 'Gyógytorna' };\nreturn [{ json: { email, triage, calendarId, calendarName, serviceId: service.Id, serviceName: service.Name } }];"
+      },
+      "id": "n57",
+      "name": "Select Service (New)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2976,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://fiziotars.booked4.us/rest-v2/api/Calendars/' + $json.calendarId + '/FreeIntervals' }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  ServiceId: $json.serviceId,\n  PersonCount: 1,\n  StartDate: new Date().toISOString(),\n  EndDate: new Date(Date.now() + 30*24*60*60*1000).toISOString() + 'T23:59:59'\n}) }}",
+        "options": {}
+      },
+      "id": "n10",
+      "name": "Booked4us: Get Slots (New)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3200,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json;\nconst prev = $('Select Service (New)').item.json;\nconst { email, calendarId, calendarName, serviceId } = prev;\nconst intervals = resp.Data?.Intervals || [];\nconst slots = [];\nfor (const day of intervals) {\n  for (const slot of (day.Intervals || [])) {\n    slots.push({ date: day.Date, start: slot.Start, end: slot.End, calendarId, calendarName, serviceId, datetime: `${day.Date}T${slot.Start}` });\n    if (slots.length >= 8) break;\n  }\n  if (slots.length >= 8) break;\n}\nif (!slots.length) return [{ json: { ...prev, slots: [], emailBody: 'Sajnos jelenleg nincs szabad időpont. Kérem vegye fel velünk a kapcsolatot telefonon (+36708045493).', noSlots: true } }];\nlet body = 'Kedves Páciensünk!\\n\\nAz alábbi időpontok közül kérem válasszon (válaszolja meg e-mailen a sorszámot):\\n\\n';\nslots.forEach((s,i) => { body += `${i+1}. ${s.date} ${s.start.slice(0,5)} — ${s.end.slice(0,5)}\\n`; });\nbody += '\\nVálaszában kérem adja meg a választott időpont sorszámát és telefonszámát a foglaláshoz: pl. \"2, +36301234567\"\\n\\nÜdvözlettel,\\nFiziotars csapata';\nreturn [{ json: { ...prev, slots, emailBody: body, noSlots: false } }];"
+      },
+      "id": "n11",
+      "name": "Format Slot Email (New)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3424,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@fiziotars.hu",
+        "toEmail": "={{ $json.email.fromEmail }}",
+        "subject": "={{ 'Re: ' + $json.email.subject + ' [REF#' + ($json.triage?.session_id || Math.random().toString(36).slice(2,10).toUpperCase()) + ']' }}",
+        "emailFormat": "text",
+        "text": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "n12",
+      "name": "Send: Slot Options (New)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3648,
+        576
+      ],
+      "webhookId": "3ecc66fe-06dc-49f7-8b55-83ec7294ce74",
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CRED_ID",
+          "name": "DEV@SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Fiziotars Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $json.triage?.session_id || $json.email.messageId }}",
+            "patient_email": "={{ $json.email.fromEmail }}",
+            "patient_name": "={{ $json.email.fromName }}",
+            "state": "slot_offered",
+            "clarification_round": "0",
+            "gathered_info": "={{ JSON.stringify($json.triage?.gathered || {}) }}",
+            "offered_slots": "={{ JSON.stringify($json.slots || []) }}",
+            "last_sent_message_id": "={{ $json.email.messageId }}",
+            "thread_subject": "={{ $json.email.subject }}",
+            "created_at": "={{ $json.email.receivedAt }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "session_id"
+          ],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_email",
+              "displayName": "patient_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "clarification_round",
+              "displayName": "clarification_round",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gathered_info",
+              "displayName": "gathered_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "offered_calendar_id",
+              "displayName": "offered_calendar_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "offered_slots",
+              "displayName": "offered_slots",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_sent_message_id",
+              "displayName": "last_sent_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "thread_subject",
+              "displayName": "thread_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n13",
+      "name": "Sheets: Save Slot Session",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        3872,
+        576
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { email, triage } = $input.item.json;\nconst sessionId = Math.random().toString(36).slice(2,10).toUpperCase();\nconst body = `Kedves ${email.fromName || 'Páciens'}!\\n\\nKöszönjük megkeresését. Időpontfoglalásához még néhány kérdésre lenne szükségünk:\\n\\n${triage.clarification_questions}\\n\\nKérem válaszoljon erre az e-mailre.\\n\\nÜdvözlettel,\\nFiziotars csapata`;\nreturn [{ json: { email, triage, sessionId, emailBody: body } }];"
+      },
+      "id": "n14",
+      "name": "Format Clarification (New)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "YOUR_BOOKED4US_EMAIL",
+        "toEmail": "={{ $json.email.fromEmail }}",
+        "subject": "={{ 'Re: ' + $json.email.subject + ' [REF#' + $json.sessionId + ']' }}",
+        "emailFormat": "text",
+        "text": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "n15",
+      "name": "Send: Ask Questions",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2752,
+        832
+      ],
+      "webhookId": "33ce0bf7-5c2d-44f1-baf0-0b9b7844ba90",
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CRED_ID",
+          "name": "DEV@SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Fiziotars Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $('Format Clarification (New)').item.json.sessionId }}",
+            "patient_email": "={{ $('Format Clarification (New)').item.json.email.fromEmail }}",
+            "patient_name": "={{ $('Format Clarification (New)').item.json.email.fromName }}",
+            "state": "clarifying",
+            "clarification_round": "1",
+            "gathered_info": "={{ JSON.stringify($('Format Clarification (New)').item.json.triage?.gathered || {}) }}",
+            "offered_slots": "[]",
+            "last_sent_message_id": "={{ $json.messageId.replace(/[<>]/g, '') }}",
+            "thread_subject": "={{ $('Format Clarification (New)').item.json.email.subject }}",
+            "created_at": "={{ $('Format Clarification (New)').item.json.email.receivedAt }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "session_id"
+          ],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_email",
+              "displayName": "patient_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "clarification_round",
+              "displayName": "clarification_round",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gathered_info",
+              "displayName": "gathered_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "offered_slots",
+              "displayName": "offered_slots",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_sent_message_id",
+              "displayName": "last_sent_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "thread_subject",
+              "displayName": "thread_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n16",
+      "name": "Sheets: Save Clarifying Session",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2976,
+        832
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ $json.session?.state }}",
+                    "rightValue": "clarifying",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $json.session?.state }}",
+                    "rightValue": "slot_offered",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "n17",
+      "name": "Switch: Session State",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1376,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { email, session } = $input.item.json;\nconst round = parseInt(session.clarification_round || '1') + 1;\nlet gathered = {};\ntry { gathered = JSON.parse(session.gathered_info || '{}'); } catch(e) {}\nreturn [{ json: { session, email, round, gathered } }];"
+      },
+      "id": "n18",
+      "name": "Build Re-eval Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const {session, email, round, gathered} = $input.item.json;\nconst sys = `You are an AI assistant for Fiziotars physiotherapy clinic in Hungary.\nContinuing booking conversation. Previously gathered: ${JSON.stringify(gathered)}. Round ${round}/3.\nDetermine if we now have enough info to book an appointment.\n\nPatients write in Hungarian. Common terms and routing:\n- hátfájás, derékfájás, gerincfájás = back/lumbar/spine pain → dori\n- nyakfájás, nyaki feszültség = neck pain → dori\n- vállpanasz, váll fájdalom = shoulder pain → dori\n- porckorongsérv, skoliózis = disc/spine issues → dori\n- masszázs, masszírozás = massage → farkas_arpad\n- csípőfájás = hip pain → sukei_zsuzsi\n- térdfájás, bokafájás = knee/ankle pain → sukei_zsuzsi\n- tapeing, kinesio, sportrehabilitáció = taping/sports rehab → sukei_zsuzsi\n- terhesség, szülés utáni = pregnancy/postnatal → agi\n- fogyás, súlycsökkentés = weight loss → agi\n- törés/műtét utáni = post-fracture/surgery rehab → zsuzsi\n- gyermek vizsgálat = pediatric → zsuzsi\n- könyökfájás, csuklófájás = elbow/wrist pain → zsuzsi\n- otthoni látogatás = home visit → info (sufficient: false)\n\nNew vs returning patient:\n- \"első alkalommal\", \"először jönnék\" = new patient (is_new_patient: true)\n- \"már voltam\", \"visszatérő\" = returning (is_new_patient: false)\n\nSufficiency rule: If BOTH treatment type AND is_new_patient are determined, set sufficient: true (unless assignee is \"info\").\n\nRoute to therapist:\n- farkas_arpad: massage therapy\n- sukei_zsuzsi: taping, sports rehab, lower-body pain (hip, ankle, knee)\n- zsuzsi: post-fracture/surgery rehab, pediatric, elbow or wrist pain\n- agi: pregnancy, post-natal recovery, weight loss\n- dori: disc herniation, scoliosis, shoulder/neck/back/lumbar pain\n- info: home visit, truly unclear — always sufficient: false\n\nRespond ONLY with valid JSON: {\"sufficient\":bool,\"assignee\":\"dori|agi|zsuzsi|farkas_arpad|sukei_zsuzsi|info\",\"gathered\":{updated gathered object},\"missing_info\":[],\"clarification_questions\":\"Hungarian follow-up if needed, empty string if sufficient\"}\nDo NOT wrap in code blocks or markdown. Return raw JSON only, starting with {\n`;\nreturn [{ json: { session, email, round, gathered, system:sys, message:email.body } }];"
+      },
+      "id": "n19",
+      "name": "Prepare Re-eval Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json.text\nconst prev = $('Prepare Re-eval Request').item.json;\nconst { session, email, round, gathered: oldGathered } = prev;\nlet triage;\ntry {\n  const clean = (resp || '{}').replace(/^```(?:json)?\\s*/i, '').replace(/```\\s*$/, '').trim();\n  triage = JSON.parse(clean);\n} catch(e) {\n  triage = { sufficient: false, assignee: 'info', gathered: oldGathered || {}, missing_info: [], clarification_questions: '' };\n}\nreturn [{ json: { session, email, round, gathered: triage.gathered || oldGathered, triage } }];"
+      },
+      "id": "n21",
+      "name": "Parse Re-eval Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.triage.sufficient }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n22",
+      "name": "Re-eval Sufficient?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2752,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const CALENDAR_MAP = { dori:1, agi:2, zsuzsi:5, farkas_arpad:3, sukei_zsuzsi:4 };\nconst NAME_MAP = { dori:'Sipos Dóra', agi:'Lugosi Ágnes', zsuzsi:'Panykó-Tóth Zsuzsanna', farkas_arpad:'Farkas Árpád', sukei_zsuzsi:'Sükei Zsuzsa' };\nconst prev = $('Parse Re-eval Response').first().json;\nconst { session, email, triage, round, gathered } = prev;\nconst assignee = triage.assignee || 'dori';\nconst calendarId = CALENDAR_MAP[assignee] || 1;\nconst calendarName = NAME_MAP[assignee] || assignee;\nreturn [{ json: { session, email, triage, round, gathered, calendarId, calendarName: calendarName } }];"
+      },
+      "id": "n47",
+      "name": "Resolve Calendar (Re-eval)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        -288
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://fiziotars.booked4.us/rest-v2/api/Calendars/' + $json.calendarId + '/Services' }}",
+        "options": {}
+      },
+      "id": "n58",
+      "name": "Get Services (Re-eval)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3424,
+        -288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.all().map(i => i.json);\nconst prev = $('Resolve Calendar (Re-eval)').first().json;\nconst { session, email, triage, round, gathered, calendarId, calendarName } = prev;\nconst list = Array.isArray(raw) ? raw : (raw[0]?.Data ? raw.map(i=>i.Data).flat() : []);\nconst services = list.filter(s => s && s.Id);\nconst service = services[0] || { Id: 1, Name: 'Gyógytorna' };\nreturn [{ json: { session, email, triage, round, gathered, calendarId, calendarName, serviceId: service.Id, serviceName: service.Name } }];"
+      },
+      "id": "n59",
+      "name": "Select Service (Re-eval)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3648,
+        -288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://fiziotars.booked4.us/rest-v2/api/Calendars/' + $json.calendarId + '/FreeIntervals' }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  ServiceId: $json.serviceId,\n  PersonCount: 1,\n  StartDate: new Date().toISOString(),\n  EndDate: new Date(Date.now() + 30*24*60*60*1000).toISOString()\n}) }}",
+        "options": {}
+      },
+      "id": "n23",
+      "name": "Booked4us: Get Slots (Re-eval)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3872,
+        -288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.item.json;\nconst prev = $('Select Service (Re-eval)').item.json;\nconst { session, email, calendarId, calendarName, serviceId } = prev;\nconst intervals = resp.Data?.Intervals || [];\nconst slots = [];\nfor (const day of intervals) {\n  for (const slot of (day.Intervals || [])) {\n    slots.push({ date: day.Date, start: slot.Start, end: slot.End, calendarId, calendarName, serviceId, datetime: `${day.Date}T${slot.Start}` });\n    if (slots.length >= 8) break;\n  }\n  if (slots.length >= 8) break;\n}\nif (!slots.length) return [{ json: { ...prev, slots: [], emailBody: 'Sajnos jelenleg nincs szabad időpont. Kérem vegye fel velünk a kapcsolatot telefonon.', noSlots: true } }];\nlet body = 'Kedves Páciensünk!\\n\\nKérjük válasszon alábbi időpontok közül:\\n\\n';\nslots.forEach((s,i) => { body += `${i+1}. ${s.date} ${s.start.slice(0,5)} — ${s.end.slice(0,5)}\\n`; });\nbody += '\\nVálaszában kérem adja meg a választott időpont sorszámát és telefonszámát a foglaláshoz: pl. \"2, +36301234567\"\\n\\nÜdvözlettel,\\nFiziotars csapata';\nreturn [{ json: { ...prev, slots, emailBody: body, noSlots: false } }];"
+      },
+      "id": "n24",
+      "name": "Format Slot Email (Re-eval)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4096,
+        -288
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "YOUR_BOOKED4US_EMAIL",
+        "toEmail": "={{ $json.email.fromEmail }}",
+        "subject": "={{ 'Re: ' + $json.email.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "n25",
+      "name": "Send: Slot Options (Re-eval)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        4320,
+        -288
+      ],
+      "webhookId": "787513bb-0dd8-4523-bcf0-cae27c8e75cf",
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CRED_ID",
+          "name": "DEV@SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Fiziotars Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $('Format Slot Email (Re-eval)').item.json.session.session_id }}",
+            "state": "=slot_offered",
+            "updated_at": "={{ new Date().toISOString() }}",
+            "gathered_info": "={{ $('Format Slot Email (Re-eval)').item.json.gathered }}",
+            "offered_slots": "={{ $('Format Slot Email (Re-eval)').item.json.slots }}",
+            "last_sent_message_id": "={{ $json.messageId }}"
+          },
+          "matchingColumns": [
+            "session_id"
+          ],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_email",
+              "displayName": "patient_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "clarification_round",
+              "displayName": "clarification_round",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "gathered_info",
+              "displayName": "gathered_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "offered_slots",
+              "displayName": "offered_slots",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_sent_message_id",
+              "displayName": "last_sent_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "thread_subject",
+              "displayName": "thread_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n26",
+      "name": "Sheets: Update Slot Offered",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        4544,
+        -288
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.round }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n27",
+      "name": "Max Rounds?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3024,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@fiziotars.hu",
+        "toEmail": "={{ $json.email.fromEmail }}",
+        "subject": "={{ 'Re: ' + $json.email.subject }}",
+        "emailFormat": "text",
+        "text": "Kedves Páciens!\n\nSajnáljuk, de nem sikerült elegendő információt összegyűjteni az időpontfoglaláshoz. Kérem hívjon minket közvetlenül telefonon: +36-XX-XXX-XXXX\n\nÜdvözlettel,\nFiziotars csapata",
+        "options": {}
+      },
+      "id": "n28",
+      "name": "Send: Max Rounds Apology",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3296,
+        -96
+      ],
+      "webhookId": "598d05cf-fffa-46d6-a972-b488b5189e21",
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CRED_ID",
+          "name": "DEV@SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Fiziotars Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $json.session.session_id }}",
+            "state": "failed",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_email",
+              "displayName": "patient_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "clarification_round",
+              "displayName": "clarification_round",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "gathered_info",
+              "displayName": "gathered_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "offered_calendar_id",
+              "displayName": "offered_calendar_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "offered_slots",
+              "displayName": "offered_slots",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_sent_message_id",
+              "displayName": "last_sent_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "thread_subject",
+              "displayName": "thread_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n29",
+      "name": "Sheets: Update Failed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        3488,
+        -96
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { session, email, triage, round } = $input.item.json;\nconst body = `Kedves ${email.fromName || 'Páciens'}!\\n\\nKöszönjük válaszát. Még néhány kérdésünk van (${round}/3. kör):\\n\\n${triage.clarification_questions}\\n\\nKérem válaszoljon erre az e-mailre.\\n\\nÜdvözlettel,\\nFiziotars csapata`;\nreturn [{ json: { session, email, triage, round, emailBody: body } }];"
+      },
+      "id": "n30",
+      "name": "Format More Questions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3264,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@fiziotars.hu",
+        "toEmail": "={{ $json.email.fromEmail }}",
+        "subject": "={{ 'Re: ' + $json.email.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "n31",
+      "name": "Send: More Questions",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3488,
+        144
+      ],
+      "webhookId": "3c961e7d-6ee1-4425-bc0b-447a83f13353",
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CRED_ID",
+          "name": "DEV@SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Fiziotars Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $json.session.session_id }}",
+            "clarification_round": "={{ Number($json.round) + 1 }}",
+            "gathered_info": "={{ JSON.stringify($json.triage?.gathered || {}) }}",
+            "last_sent_message_id": "={{ $json.email.messageId }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "session_id"
+          ],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_email",
+              "displayName": "patient_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "clarification_round",
+              "displayName": "clarification_round",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gathered_info",
+              "displayName": "gathered_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "offered_calendar_id",
+              "displayName": "offered_calendar_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "offered_slots",
+              "displayName": "offered_slots",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_sent_message_id",
+              "displayName": "last_sent_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "thread_subject",
+              "displayName": "thread_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n32",
+      "name": "Sheets: Update Round++",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        3712,
+        128
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { email, session } = $input.item.json;\nlet slots = [];\ntry { slots = JSON.parse(session.offered_slots || '[]'); } catch(e) {}\nconst body = email.body || '';\nconst match = body.match(/\\b([1-8])\\b/);\nconst choice = match ? parseInt(match[1]) : null;\nconst chosenSlot = (choice && slots[choice-1]) ? slots[choice-1] : null;\nconst phoneMatch = body.match(/(?:\\+36|06)[\\s\\-]?\\d{1,2}[\\s\\-]?\\d{3}[\\s\\-]?\\d{4}|\\+\\d{10,12}/);\nconst phone = phoneMatch ? phoneMatch[0].replace(/[\\s\\-]/g, '') : '';\nreturn [{ json: { email, session, slots, choice, chosenSlot, validChoice: !!chosenSlot, phone } }];"
+      },
+      "id": "n33",
+      "name": "Extract Slot Choice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.validChoice }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n34",
+      "name": "Valid Choice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://fiziotars.booked4.us/rest-v2/api/Reservations?culture=hu",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\n  User: {\nEmail: $('Parse Email').item.json.fromEmail.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\\.[a-zA-Z0-9._-]+)/gi)[0],\nName: $('Parse Email').item.json.fromName,\nPhone: '+36XXXXXXXXX'\n  },\nReservations: [\n{\nStartTime: $json.chosenSlot.datetime,\nArriveTime: $json.chosenSlot.datetime,\nCalendarId: $json.chosenSlot.calendarId,\nServiceId: $json.chosenSlot.serviceId,\nScheduleId: null,\nPersonCount: 1, \nQuestions: [\n{\nId: 1, \nFieldName: 'Probléma Leírása',\nName: \"Panasz\",\nValue:  $('Get Sessions').item.json.gathered_info ? JSON.parse($('Get Sessions').item.json.gathered_info).treatment_type : 'No treatment specified' \n}\n]\n}\n],\nTermsAccepted: true\n\n}) }}",
+        "options": {}
+      },
+      "id": "n48",
+      "name": "Booked4us: Create Reservation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2240,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.Success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n49",
+      "name": "Booking Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@fiziotars.hu",
+        "toEmail": "={{ $('Extract Slot Choice').item.json.email.fromEmail }}",
+        "subject": "=FizioTárs Foglalás Megerősítve",
+        "emailFormat": "text",
+        "text": "={{ 'Kedves ' + $('Extract Slot Choice').item.json.session.patient_name + '!\\n\\nFoglalása sikeresen rögzítve:\\n\\nDátum: ' + $('Extract Slot Choice').item.json.chosenSlot.date + '\\nIdőpont: ' + $('Extract Slot Choice').item.json.chosenSlot.start + '\\nTerapeuta: ' + $('Extract Slot Choice').item.json.chosenSlot.calendarName + '\\n\\nCím: Fiziotars, Debrecen, Lehel Utca 22\\n\\nÜdvözlettel,\\nFiziotars csapata' }}",
+        "options": {}
+      },
+      "id": "n50",
+      "name": "Send: Booking Confirmation",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2752,
+        192
+      ],
+      "webhookId": "8c18c559-7c88-404b-8115-1e08eeb12fca",
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CRED_ID",
+          "name": "DEV@SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Fiziotars Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $('Extract Slot Choice').item.json.session.session_id }}",
+            "state": "booked",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "session_id"
+          ],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_email",
+              "displayName": "patient_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "clarification_round",
+              "displayName": "clarification_round",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "gathered_info",
+              "displayName": "gathered_info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "offered_calendar_id",
+              "displayName": "offered_calendar_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "offered_slots",
+              "displayName": "offered_slots",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_sent_message_id",
+              "displayName": "last_sent_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "thread_subject",
+              "displayName": "thread_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n51",
+      "name": "Sheets: Update Booked",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2976,
+        192
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { email, session, slots } = $('Extract Slot Choice').item.json;\nlet body = 'Kedves Páciensünk!\\n\\nSajnáljuk, a választott időpont időközben foglalttá vált.\\n\\nKérem válasszon egy másik időpontot az alábbiak közül:\\n\\n';\nslots.forEach((s,i) => { body += `${i+1}. ${s.date} ${s.start.slice(0,5)} — ${s.end.slice(0,5)}\\n`; });\nbody += '\\nÜdvözlettel,\\nFiziotars csapata';\nreturn [{ json: { email, session, slots, emailBody: body } }];"
+      },
+      "id": "n52",
+      "name": "Format Slot Taken Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2752,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@fiziotars.hu",
+        "toEmail": "={{ $json.email.fromEmail }}",
+        "subject": "={{ 'Re: ' + $json.session.thread_subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "n53",
+      "name": "Send: Slot Taken",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2976,
+        384
+      ],
+      "webhookId": "b3f02f63-0c9e-4f04-a878-a60137336d76",
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CRED_ID",
+          "name": "DEV@SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@fiziotars.hu",
+        "toEmail": "={{ $json.email.fromEmail }}",
+        "subject": "={{ 'Re: ' + $json.session.thread_subject }}",
+        "emailFormat": "text",
+        "text": "Kedves Páciens!\n\nNem sikerült azonosítani a választott időpontot. Kérem válaszoljon a sorszámmal (pl. '2').\n\nÜdvözlettel,\nFiziotars csapata",
+        "options": {}
+      },
+      "id": "n43",
+      "name": "Send: Invalid Choice",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2240,
+        480
+      ],
+      "webhookId": "c1488294-f74c-460a-a33d-7b0f371c23b5",
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CRED_ID",
+          "name": "DEV@SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.email.body }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.systemMessage }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1600,
+        736
+      ],
+      "id": "fe5267c9-d323-4e47-9f76-d94f8f2fc90c",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1680,
+        960
+      ],
+      "id": "5a53cd4f-9157-4661-9508-ebf14c4f70cc",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "ANTHROPIC_CRED_ID",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.email.body }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.system }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2208,
+        -144
+      ],
+      "id": "7209268a-24ab-44d6-96fa-e8a6e0b8268f",
+      "name": "Re-Evaluate"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.6"
+        },
+        "options": {
+          "maxTokensToSample": 1024
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2256,
+        32
+      ],
+      "id": "b1763ed0-0803-42ac-854f-045bbf073331",
+      "name": "Anthropic Chat Model1",
+      "credentials": {
+        "anthropicApi": {
+          "id": "ANTHROPIC_CRED_ID",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://fiziotars.booked4.us/rest-v2/api/token",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/x-www-form-urlencoded",
+        "body": "grant_type=password&username=YOUR_BOOKED4US_EMAIL&password=YOUR_BOOKED4US_PASSWORD&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2976,
+        -288
+      ],
+      "id": "762a0b71-bbff-45f0-b0be-5e4baa3c6ac6",
+      "name": "Get Token"
+    }
+  ],
+  "connections": {
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Parse Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email": {
+      "main": [
+        [
+          {
+            "node": "Get Sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sessions": {
+      "main": [
+        [
+          {
+            "node": "Find Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Session": {
+      "main": [
+        [
+          {
+            "node": "Session Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Session Found?": {
+      "main": [
+        [
+          {
+            "node": "Switch: Session State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Triage Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Triage Request": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Triage Response": {
+      "main": [
+        [
+          {
+            "node": "Initial Sufficient?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initial Sufficient?": {
+      "main": [
+        [
+          {
+            "node": "Resolve Calendar (New)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Clarification (New)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Calendar (New)": {
+      "main": [
+        [
+          {
+            "node": "Get Services (New)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Services (New)": {
+      "main": [
+        [
+          {
+            "node": "Select Service (New)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Service (New)": {
+      "main": [
+        [
+          {
+            "node": "Booked4us: Get Slots (New)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booked4us: Get Slots (New)": {
+      "main": [
+        [
+          {
+            "node": "Format Slot Email (New)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slot Email (New)": {
+      "main": [
+        [
+          {
+            "node": "Send: Slot Options (New)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send: Slot Options (New)": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Save Slot Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Clarification (New)": {
+      "main": [
+        [
+          {
+            "node": "Send: Ask Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send: Ask Questions": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Save Clarifying Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Session State": {
+      "main": [
+        [
+          {
+            "node": "Build Re-eval Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Slot Choice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Re-eval Context": {
+      "main": [
+        [
+          {
+            "node": "Prepare Re-eval Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Re-eval Request": {
+      "main": [
+        [
+          {
+            "node": "Re-Evaluate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Re-eval Response": {
+      "main": [
+        [
+          {
+            "node": "Re-eval Sufficient?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-eval Sufficient?": {
+      "main": [
+        [
+          {
+            "node": "Get Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Max Rounds?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Calendar (Re-eval)": {
+      "main": [
+        [
+          {
+            "node": "Get Services (Re-eval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Services (Re-eval)": {
+      "main": [
+        [
+          {
+            "node": "Select Service (Re-eval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Service (Re-eval)": {
+      "main": [
+        [
+          {
+            "node": "Booked4us: Get Slots (Re-eval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booked4us: Get Slots (Re-eval)": {
+      "main": [
+        [
+          {
+            "node": "Format Slot Email (Re-eval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slot Email (Re-eval)": {
+      "main": [
+        [
+          {
+            "node": "Send: Slot Options (Re-eval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send: Slot Options (Re-eval)": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Update Slot Offered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Max Rounds?": {
+      "main": [
+        [
+          {
+            "node": "Send: Max Rounds Apology",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format More Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send: Max Rounds Apology": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Update Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format More Questions": {
+      "main": [
+        [
+          {
+            "node": "Send: More Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send: More Questions": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Update Round++",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Slot Choice": {
+      "main": [
+        [
+          {
+            "node": "Valid Choice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Choice?": {
+      "main": [
+        [
+          {
+            "node": "Booked4us: Create Reservation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send: Invalid Choice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booked4us: Create Reservation": {
+      "main": [
+        [
+          {
+            "node": "Booking Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking Success?": {
+      "main": [
+        [
+          {
+            "node": "Send: Booking Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Slot Taken Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send: Booking Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Sheets: Update Booked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slot Taken Email": {
+      "main": [
+        [
+          {
+            "node": "Send: Slot Taken",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ],
+      "main": [
+        []
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Parse Triage Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-Evaluate": {
+      "main": [
+        [
+          {
+            "node": "Parse Re-eval Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Re-Evaluate",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Token": {
+      "main": [
+        [
+          {
+            "node": "Resolve Calendar (Re-eval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "fd121971-b6ea-4dcf-bab2-e7c0b7cbee32",
+  "versionCounter": 33,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-27T13:07:55.569Z",
+      "createdAt": "2026-02-27T13:07:55.569Z",
+      "role": "workflow:owner",
+      "workflowId": "8D16AbR4hldDuR0j",
+      "projectId": "5DRInT0vCscYmgyN",
+      "project": {
+        "updatedAt": "2025-05-16T16:51:56.986Z",
+        "createdAt": "2025-05-16T16:48:58.348Z",
+        "id": "5DRInT0vCscYmgyN",
+        "name": "Laszlo Takacs <YOUR_EMAIL@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-05-16T16:48:58.349Z",
+            "createdAt": "2025-05-16T16:48:58.349Z",
+            "userId": "e426f169-93a7-4d8b-af3d-09a19763efae",
+            "projectId": "5DRInT0vCscYmgyN",
+            "user": {
+              "updatedAt": "2026-03-05T09:46:07.000Z",
+              "createdAt": "2025-05-16T16:48:57.846Z",
+              "id": "e426f169-93a7-4d8b-af3d-09a19763efae",
+              "email": "YOUR_EMAIL@gmail.com",
+              "firstName": "Laszlo",
+              "lastName": "Takacs",
+              "personalizationAnswers": {
+                "version": "v4",
+                "personalization_survey_submitted_at": "2025-05-16T16:52:07.108Z",
+                "personalization_survey_n8n_version": "1.92.2",
+                "companyType": "personal",
+                "reportedSource": "google"
+              },
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "1lD0ivILB1HDRarF",
+                "userActivatedAt": 1748001610198,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1769033629298
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": true,
+              "lastActiveAt": "2026-03-04",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": []
+}

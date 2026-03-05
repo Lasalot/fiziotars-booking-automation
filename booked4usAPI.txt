@@ -1,0 +1,928 @@
+booked4.us REST API v2 Endpoints
+This document summarises the endpoints available in the booked4.us REST API v2. It groups them by resource tags and explains the purpose of each endpoint along with usage details.
+Overview
+The booked4.us API enables programmatic access to calendar management, reservations, user management, service definitions and other resources. Endpoints typically return JSON objects and require authorization via OAuth2. The API uses standard HTTP methods to create (POST), read (GET), update (PUT), and delete (DELETE) resources.
+Calendars Endpoints
+The Calendars endpoints deal with calendars resources and related operations.
+GET /api/Calendars
+Purpose: Get all available Calendars.
+Parameters:
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - base data.
+GET /api/Calendars/Admin
+Purpose: Get all available Calendars, for elevated users.
+Parameters:
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - base data.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Calendars/WithDetails
+Purpose: Get all available Calendars with detailed data.
+Parameters:
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - detailed data.
+GET /api/Calendars/WithDetails/Admin
+Purpose: Get all available Calendars with detailed data, for elevated users.
+Parameters:
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - detailed data.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Calendars/WithTimeTable
+Purpose: Get all available Calendars with detailed data including opening hours information.
+Parameters:
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - detailed data with opening hours information.
+GET /api/Calendars/WithTimeTable/Admin
+Purpose: Get all available Calendars with detailed data including opening hours information, for elevated users.
+Parameters:
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - detailed data with opening hours information.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Calendars/Checksum
+Purpose: Get global last modified time of Calendars.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Calendars/{id}/Reservations
+Purpose: Get available reservations by Calendar id between the given date range..
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+StartDateTime (query, string) – Start Datetime of the interval.
+EndDateTime (query, string) – End Datetime of the interval.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Calendars/{id}/Reservations/ModifiedAfter/{modifiedAfter}
+Purpose: Get reservations modified after the given checksum.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+modifiedAfter (path, integer) – Checksum.
+Responses:
+200 – Reservations modified after the given checksum.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Calendars/{id}
+Purpose: Get Calendar given by Id.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Responses:
+200 – Calendar detailed data.
+400 – Bad Request.
+GET /api/Calendars/{id}/TimeTable
+Purpose: Get Timetable given by Calendar Id.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Responses:
+200 – Timetable information for the given Calendar.
+400 – Bad Request.
+GET /api/Calendars/{id}/Services
+Purpose: Get all Services to Calendar.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Responses:
+200 – Service list - base data.
+400 – Bad Request.
+GET /api/Calendars/{id}/Services/WithDetails
+Purpose: Get all Services to Calendar with detailed data.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Responses:
+200 – Service list - detailed data.
+400 – Bad Request.
+GET /api/Calendars/{id}/FirstFreeSlot
+Purpose: Get the first available free time slot for the given Calendar.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+ServiceId (query, integer) – Unique identifier of the Service.
+StartDateTime (query, string) – Datetime from where first free slot is needed.
+Responses:
+200 – First available free time slot.
+400 – Bad Request.
+POST /api/Calendars/{id}/FreeIntervals
+Purpose: Get free intervals for the given Calendar between the given date range.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Request Body: Request body required (Content‑Type: application/json, Schema: FreeIntervalsRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+POST /api/Calendars/{id}/FreeIntervals/Admin
+Purpose: Get free intervals for the given Calendar between the given date range, for admins.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Request Body: Request body required (Content‑Type: application/json, Schema: FreeIntervalsAdminRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Calendars/{id}/AllIntervals
+Purpose: Get all intervals (free and reserved) between the given date range for the given Calendar.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+PersonCount (query, integer) – Number of people possibly belonging to the future reservation.
+UseSlotMinutes (query, boolean) – Flag that indicates if the calculated intervals should be divided up by the calendar slot minute setting.
+IsUtc (query, boolean) – Flag that indicates whether the returned intervals are in Coordinated Universal Time or not.
+StartDate (query, string) – Start date of the interval.
+EndDate (query, string) – End date of the interval.
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Calendars/AllIntervals
+Purpose: Get all intervals (free and reserved) between the given date range for the given Calendar list..
+Parameters:
+CalendarIds (query, array) – The list of calendars (given with ids) the intervals needed for.
+PersonCount (query, integer) – Number of people possibly belonging to the future reservation.
+UseSlotMinutes (query, boolean) – Flag that indicates if the calculated intervals should be divided up by the calendar slot minute setting.
+IsUtc (query, boolean) – Flag that indicates whether the returned intervals are in Coordinated Universal Time or not.
+StartDate (query, string) – Start date of the interval.
+EndDate (query, string) – End date of the interval.
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Calendars/{id}/ArrivalTimes
+Purpose: Get all available arrival times on the given day for the given Calendar.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Date (query, string) – Date of the day Arrival times are needed for.
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Calendars/{id}/ArrivalTimes/Admin
+Purpose: Get all available arrival times on the given day for the given Calendar, for elevated users.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Date (query, string) – Date of the day Arrival times are needed for.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Calendars/{id}/DaysWithFreeIntervals
+Purpose: Get dates with at least one free interval for the given Calendar between the given date range.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Request Body: Request body required (Content‑Type: application/json, Schema: FreeIntervalsRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+POST /api/Calendars/GoogleSync
+Purpose: Makes a Google Calendar synchronization for each Calendar.
+Responses:
+200 – Success.
+POST /api/Calendars/{id}/GoogleSync
+Purpose: Makes a Google Calendar synchronization for the given Calendar.
+Parameters:
+id (path, integer) – Unique identifier of the Calendar.
+Responses:
+200 – Success.
+400 – Bad Request.
+Company Endpoints
+The Company endpoints deal with company resources and related operations.
+GET /api/Company
+Purpose: Get details of the current company.
+Responses:
+200 – Success.
+GET /api/Company/ContactInfo
+Purpose: Get details of the current company.
+Responses:
+200 – Success.
+GET /api/Company/Image/{imageType}
+Purpose: Get an image link by type belongs to the current company.
+Parameters:
+imageType (path, string) – Type of the image Possible values: Logo, Background.
+Responses:
+200 – Success.
+400 – Bad Request.
+404 – Not Found.
+GET /api/Company/Admin
+Purpose: Get the details of the Administrator user.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Company/ReservationOrder
+Purpose: Get the order of the reservation process.
+Responses:
+200 – 1 = Calendar -> Service order, 2 = Service -> Calendar order.
+GET /api/Company/TimeZone
+Purpose: Get the timezone of the reservation process.
+Responses:
+200 – Success.
+POST /api/Company/SetLanguage
+Purpose: Set the language and store it in a cookie to use it in further requests..
+Parameters:
+lang (query, Language) – The code of the desired language. Possible values: HU (0), EN (1), SK (2), DE (3).
+Responses:
+200 – Success.
+GET /api/Company/PrivacyStatement
+Purpose: Get the privacy statement of the company.
+Parameters:
+lang (query, Language) – The code of the desired language (optional). Possible values: HU (0), EN (1), SK (2), DE (3).
+Responses:
+200 – Success.
+GET /api/Company/AdminRequiredFieldInfo
+Purpose: Get flags indicate which user data are required during the reservation process on admin pages/applications..
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Company/AdminReservationSettings
+Purpose: Get admin reservation settings.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Company/GetCustomStyleSheet
+Purpose: Gets a link to the custom stylesheet of the user page..
+Responses:
+200 – Success.
+GET /api/Company/CustomScripts
+Purpose: .
+Responses:
+200 – Success.
+GET /api/Company/TrackingCodes
+Purpose: Get the Facebook pixel and Google Analytics tracking id of the company..
+Responses:
+200 – Success.
+GET /api/Company/Pocket/Active
+Purpose: Get active pockets.
+Responses:
+200 – Success.
+ExtraDayOff Endpoints
+The ExtraDayOff endpoints deal with extradayoff resources and related operations.
+GET /api/ExtraDayOff/{id}
+Purpose: Get a single extra dayoff or opening.
+Parameters:
+id (path, integer) – Unique identifier of the extra dayoff or opening.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/{calendarId}/ExtraDayOff
+Purpose: Get a list of extra dayoffs or openings.
+Parameters:
+calendarId (path, integer) – The id of the calendar.
+startDate (query, string) – Start of the interval.
+endDate (query, string) – End of the interval.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/ExtraDayOff
+Purpose: Add a list of extra dayoffs or openings..
+Request Body: The list of new extra dayoffs or openings (Content‑Type: application/json, Schema: array).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/ExtraDayOff
+Purpose: UpdateAsync a list of extra dayoffs or openings..
+Request Body: The list of changed extra dayoffs or openings (Content‑Type: application/json, Schema: array).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+DELETE /api/ExtraDayOff
+Purpose: Delete a list of extra dayoffs or openings..
+Request Body: The list of ids (Content‑Type: application/json, Schema: array).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+Finance Endpoints
+The Finance endpoints deal with finance resources and related operations.
+POST /api/Finance/Barion
+Purpose: .
+Parameters:
+paymentId (query, string) – No description.
+clientKey (query, string) – No description.
+Responses:
+200 – Success.
+POST /api/Finance/SimplePayIpn
+Purpose: .
+Parameters:
+signature (header, string) – No description.
+Request Body: Request body required (Content‑Type: application/json, Schema: SimplePayIpnRequestModel).
+Responses:
+200 – Success.
+GET /api/Finance/PaymentResult
+Purpose: .
+Parameters:
+paymentId (query, string) – No description.
+clientKey (query, string) – No description.
+ignoreStatus (query, boolean) – No description.
+Responses:
+200 – Success.
+GET /api/Finance/VatRates
+Purpose: .
+Responses:
+200 – Success.
+PaymentReservation Endpoints
+The PaymentReservation endpoints deal with paymentreservation resources and related operations.
+POST /api/PaymentReservations
+Purpose: Create PaymentReservation(s) with PaymentUser and get back the ClientKey.
+Request Body: Request body required (Content‑Type: application/json, Schema: PaymentReservationRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/PaymentReservations/ByClientKey
+Purpose: Get PaymentReservations by ClientKey.
+Parameters:
+clientKey (query, string) – No description.
+Responses:
+200 – Success.
+400 – Bad Request.
+PreReservation Endpoints
+The PreReservation endpoints deal with prereservation resources and related operations.
+POST /api/PreReservations
+Purpose: Create PreReservation and get url for PreReserve page.
+Request Body: Request body required (Content‑Type: application/json, Schema: PreReservationRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+409 – When no free interval is available..
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/PreReservations/ByClientKey/{clientKey}
+Purpose: Get PreReservations by ClientKey.
+Parameters:
+clientKey (path, string) – ClientKey.
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/PreReservations/ByExternalId/{externalId}
+Purpose: Get PreReservations by External Id.
+Parameters:
+externalId (path, string) – External identifier.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+PushNotifications Endpoints
+The PushNotifications endpoints deal with pushnotifications resources and related operations.
+GET /api/Pushnotifications
+Purpose: Get push notification subscription info for each Calendar.
+Parameters:
+deviceId (query, string) – No description.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Pushnotifications
+Purpose: Subscribe to push notifications.
+Request Body: Request body required (Content‑Type: application/json, Schema: AddPushNotiSubscriptionBaseDto).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Pushnotifications/Inactivate
+Purpose: Inactivate every subscriptions by device.
+Parameters:
+deviceId (query, string) – No description.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Pushnotifications/Reactivate
+Purpose: Set subscriptions to active again for the current device and user.
+Parameters:
+deviceId (query, string) – No description.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+Reservation Endpoints
+The Reservation endpoints deal with reservation resources and related operations.
+POST /api/Reservations
+Purpose: Create reservations.
+Request Body: Request body required (Content‑Type: application/json, Schema: ReservationUserSaveRequest).
+Responses:
+200 – Success.
+POST /api/Reservations/Admin
+Purpose: Create reservations as an admin or an employee.
+Request Body: Request body required (Content‑Type: application/json, Schema: ReservationAdminSaveRequest).
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Reservations/{id}/ModifiedAfter/{modifiedAfter}
+Purpose: Get whether the given Reservation has modified, depends on the checksum..
+Parameters:
+id (path, integer) – Unique identifier of the Reservation.
+modifiedAfter (path, integer) – Checksum.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Reservations/{id}
+Purpose: Get Reservation by Id.
+Parameters:
+id (path, integer) – Unique identifier of the Reservation.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/Reservations/{id}
+Purpose: UpdateAsync a reservation..
+Parameters:
+id (path, integer) – The unique id of the reservation.
+Request Body: The changed data of the reservation (Content‑Type: application/json, Schema: ReservationUpdateRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+DELETE /api/Reservations/{id}
+Purpose: Delete a Reservation by Id..
+Parameters:
+id (path, integer) – The unique id of the reservation.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Reservations/ByExternalId/{externalId}
+Purpose: Get Reservations by External Id.
+Parameters:
+externalId (path, string) – External identifier.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/Reservations/{id}/Accept
+Purpose: Accept (modify the confirmation state) Reservation by Id..
+Parameters:
+id (path, integer) – Unique identifier of Boardthe Reservation.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/Reservations/Accept
+Purpose: Accept a list of Reservations by Ids..
+Request Body: Unique identifiers of the Reservations (Content‑Type: application/json, Schema: array).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+DELETE /api/Reservations/{id}/Reject
+Purpose: Reject (modify the confirmation state) Reservation by Id..
+Parameters:
+id (path, integer) – Unique identifier of the Reservation.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+DELETE /api/Reservations/Reject
+Purpose: Reject a list of Reservations by Ids..
+Request Body: Unique identifiers of the Reservations (Content‑Type: application/json, Schema: array).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/Reservations/{id}/Admin
+Purpose: UpdateAsync a reservation as an admin or an employee.
+Parameters:
+id (path, integer) – The unique id of the reservation.
+Request Body: The changed data of the reservation (Content‑Type: application/json, Schema: ReservationUpdateRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/Reservations/{id}/ByClientKey
+Purpose: Allows users to update their reservations..
+Parameters:
+id (path, integer) – The unique id of the reservation.
+Request Body: The changed data of the reservation and the client key of the reserving user (Content‑Type: application/json, Schema: ReservationUpdateRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+DELETE /api/Reservations/{id}/ByClientKey
+Purpose: Allows unregistered users to delete their reservation by Id..
+Parameters:
+id (path, integer) – The unique id of the reservation.
+clientKey (query, string) – The optional client key of the reserving user.
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Reservations/{id}/PaidTransaction
+Purpose: Get whether the given Reservation has at least one paid transaction..
+Parameters:
+id (path, integer) – The unique id of the reservation.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Reservations/{id}/PaidTransaction/ByClientKey
+Purpose: Allows unregistered users to get whether the given Reservation has at least one paid transaction..
+Parameters:
+id (path, integer) – The unique id of the reservation.
+clientKey (query, string) – The optional client key of the reserving user.
+Responses:
+200 – Success.
+Role Endpoints
+The Role endpoints deal with role resources and related operations.
+GET /api/Roles
+Purpose: Get the roles and their members that are selectable for reservations.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+Schedules Endpoints
+The Schedules endpoints deal with schedules resources and related operations.
+GET /api/{calendarId}/Schedules/Instances
+Purpose: Get available Schedule instances given by Calendar Id and date interval..
+Parameters:
+calendarId (path, integer) – Unique identifier of the calendar.
+StartDate (query, string) – Start date of the interval.
+EndDate (query, string) – End date of the interval.
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Schedules/{id}/Reservations
+Purpose: Get all reservations for a Schedule between the given date range..
+Parameters:
+id (path, integer) – Unique identifier of the Schedule.
+StartDate (query, string) – Start date of the interval.
+EndDate (query, string) – End date of the interval.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/{calendarId}/Schedules/WithReservations
+Purpose: Get available Schedule instances with Reservations, given by Calendar Id and date interval..
+Parameters:
+calendarId (path, integer) – Unique identifier of the Calendar.
+StartDate (query, string) – Start date of the interval.
+EndDate (query, string) – End date of the interval.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Schedules/{id}
+Purpose: Get Schedule by Id..
+Parameters:
+id (path, integer) – Unique identifier of the Schedule.
+Responses:
+200 – Schedule data.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+DELETE /api/Schedules/{id}
+Purpose: Delete a Schedule by Id..
+Parameters:
+id (path, integer) – Unique identifier of the Schedule.
+DeleteType (query, ScheduleUpdateType) – 0 - (Single) Selected instance only, 1 - (Future) Future instances only, 2 - (All) All instance.
+DeleteFrom (query, string) – Schedule instance will be deleted on this date, if DeleteType is Single. Future schedule instances will be deleted from this date, if DeleteType is Future..
+DeleteReservations (query, boolean) – Flag indicates if the reservations belong to the schedule should be deleted. Always true when DeleteType is single.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/{calendarId}/Schedules/WithDetails
+Purpose: Get available Schedules.
+Parameters:
+calendarId (path, integer) – Unique identifier of the calendar.
+StartDate (query, string) – If defined, the response will contain schedules only which are still active after the given day.
+ServiceId (query, integer) – Unique identifier of the service the schedules belong to.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Schedules
+Purpose: Create new Schedule..
+Request Body: Request body required (Content‑Type: application/json, Schema: ScheduleToAdd).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/Schedules
+Purpose: UpdateAsync an existing Schedule..
+Request Body: Request body required (Content‑Type: application/json, Schema: ScheduleUpdateRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Schedules/List
+Purpose: Create new Schedules..
+Request Body: Request body required (Content‑Type: application/json, Schema: array).
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+Service Endpoints
+The Service endpoints deal with service resources and related operations.
+GET /api/Services
+Purpose: Get all available Services.
+Responses:
+200 – Service list - base data.
+POST /api/Services
+Purpose: Create new Service..
+Request Body: Request body required (Content‑Type: application/json, Schema: ServiceToAddRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Services/WithDetails
+Purpose: Get all available Services with detailed data.
+Parameters:
+onlyWithVisibleCalendars (query, boolean) – No description.
+Responses:
+200 – Service list - detailed data.
+GET /api/Services/{id}
+Purpose: Get a Service given by Id.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+Responses:
+200 – Service detailed data.
+400 – Bad Request.
+GET /api/Services/{id}/Calendars
+Purpose: Get all Calendars to Service.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - base data.
+400 – Bad Request.
+GET /api/Services/{id}/Calendars/Admin
+Purpose: Get all Calendars to Service, for elevated users.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - base data.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Services/{id}/Calendars/WithDetails
+Purpose: Get all Calendars to Service.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - base data.
+400 – Bad Request.
+GET /api/Services/{id}/Calendars/WithDetails/Admin
+Purpose: Get all Calendars to Service, for elevated users.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+containHidden (query, boolean) – Flag indicates that the result should contain the hidden Calendars.
+Responses:
+200 – Calendar list - base data.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Services/{id}/CustomParams
+Purpose: Get available Questions to the given Service.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Services/{id}/CustomParams/Admin
+Purpose: Get available Questions to the given Service for admins.
+Parameters:
+id (path, integer) – Unique identifier of the Service. Can be 0 for "Other" type reservations..
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Services/{id}/FirstFreeSlot
+Purpose: Get the first available free time slot for the given Service.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+StartDateTime (query, string) – Datetime from where first free slot is needed.
+Responses:
+200 – First available free time slot.
+400 – Bad Request.
+POST /api/Services/{id}/FreeIntervals
+Purpose: Get free intervals for the given Service between the given date range.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+Request Body: Request body required (Content‑Type: application/json, Schema: AggregatedFreeIntervalsRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+POST /api/Services/{id}/DaysWithFreeIntervals
+Purpose: Get dates with at least one free interval for the given Service between the given date range.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+Request Body: Request body required (Content‑Type: application/json, Schema: AggregatedFreeIntervalsRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Services/{id}/ArrivalTimes
+Purpose: Get all available arrival times on the given day for the given Service.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+Date (query, string) – Date of the day Arrival times are needed for.
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Services/{id}/WeeksForwardMax
+Purpose: Get the maximum of the WeeksForward values for the Classic Calendars attached to the given Service.
+Parameters:
+id (path, integer) – Unique identifier of the Service.
+Responses:
+200 – Success.
+400 – Bad Request.
+Users Endpoints
+The Users endpoints deal with users resources and related operations.
+GET /api/Users
+Purpose: Get the details of the logged in user.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Users
+Purpose: UpdateAsync the details of the logged in user.
+Request Body: Request body required (Content‑Type: application/json, Schema: UserWithInvoiceDetails).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Users/Signup
+Purpose: Sign up a new user.
+Request Body: Request body required (Content‑Type: application/json, Schema: SignUpUser).
+Responses:
+200 – Success.
+400 – Bad Request.
+POST /api/Users/ChangePassword
+Purpose: Change the password of a logged in user.
+Request Body: Request body required (Content‑Type: application/json, Schema: ChangePasswordModel).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Users/ForgotPassword
+Purpose: Send an email to a user that can be used to reset their password.
+Request Body: Request body required (Content‑Type: application/json, Schema: ForgotPasswordRequest).
+Responses:
+200 – Success.
+400 – Bad Request.
+POST /api/Users/PasswordReset
+Purpose: Reset the password of a user account.
+Request Body: Request body required (Content‑Type: application/json, Schema: PasswordResetModel).
+Responses:
+200 – Success.
+400 – Bad Request.
+GET /api/Users/Permissions
+Purpose: Get the calendar permissions of the logged in user.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Users/Reservations
+Purpose: Get the reservations of the logged in user.
+Parameters:
+OrderBy (query, ReservationRequestOrder) – The name of the property to order by (date, service, calendar).
+Search (query, string) – A value to search for in the reservations service and calendar name.
+PageSize (query, integer) – The size of pages.
+PageNumber (query, integer) – The number of the page that needs to be displayed.
+IsAscending (query, boolean) – Whether the list needs to be in ascending or descending order.
+StartTime (query, string) – Start time of the interval.
+EndTime (query, string) – End time of the interval.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Users/Reservations/ByClientKey/{clientKey}
+Purpose: Get the reservations of an unregistered user.
+Parameters:
+clientKey (path, string) – The unregistered users key.
+OrderBy (query, ReservationRequestOrder) – The name of the property to order by (date, service, calendar).
+Search (query, string) – A value to search for in the reservations service and calendar name.
+PageSize (query, integer) – The size of pages.
+PageNumber (query, integer) – The number of the page that needs to be displayed.
+IsAscending (query, boolean) – Whether the list needs to be in ascending or descending order.
+StartTime (query, string) – Start time of the interval.
+EndTime (query, string) – End time of the interval.
+Responses:
+200 – Success.
+GET /api/Users/AutoComplete
+Purpose: Get a list of users for typeahead.
+Parameters:
+term (query, string) – The currently typed in string.
+type (query, AutoCompleteUserType) – The type of the term. 0 = Name, 1 = Email, 2 = Phone.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Users/Details
+Purpose: Get user by details.
+Parameters:
+IsRegistered (query, boolean) – Flag indicates whether the user is registered or not.
+Name (query, string) – Full name of the user.
+Email (query, string) – Email address of the user.
+Phone (query, string) – Phone number of the user.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Users/Details
+Purpose: Create a user.
+Request Body: Request body required (Content‑Type: application/json, Schema: UserToAdd).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+POST /api/Users/Details/List
+Purpose: Create users.
+Request Body: Request body required (Content‑Type: application/json, Schema: array).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/Users/Details/{userId}
+Purpose: UpdateAsync user.
+Parameters:
+userId (path, integer) – No description.
+Request Body: Request body required (Content‑Type: application/json, Schema: User).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+DELETE /api/Users/Details/{userId}
+Purpose: Delete user.
+Parameters:
+userId (path, integer) – No description.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Users/WithInvoiceDetails
+Purpose: Get the details of the logged in user with invoice details information.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+GET /api/Users/InvoiceDetails
+Purpose: Get the invoice details information of the logged in user.
+Responses:
+200 – Success.
+401 – Unauthorized.
+403 – Forbidden.
+PUT /api/Users/InvoiceDetails
+Purpose: UpdateAsync the invoice details information of the logged in user.
+Request Body: Request body required (Content‑Type: application/json, Schema: InvoiceDetails).
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+DELETE /api/Users/InvoiceDetails
+Purpose: Delete the invoice details information of the logged in user.
+Responses:
+200 – Success.
+400 – Bad Request.
+401 – Unauthorized.
+403 – Forbidden.
+Webhook Endpoints
+The Webhook endpoints deal with webhook resources and related operations.
+POST /api/Webhooks/Create
+Purpose: .
+Responses:
+200 – Success.
